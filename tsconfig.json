@@ -1,0 +1,46 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "compilerOptions": {
+        "allowSyntheticDefaultImports": true,
+        "alwaysStrict": true,
+        "emitDecoratorMetadata": true,
+        "esModuleInterop": true,
+        "experimentalDecorators": true,
+        "forceConsistentCasingInFileNames": true,
+        "inlineSourceMap": true,
+        "inlineSources": true,
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "noEmit": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitReturns": true,
+        "noUncheckedIndexedAccess": true,
+        "outDir": "./dist",
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "target": "ESNext"
+    },
+    "exclude": [
+        "node_modules"
+    ],
+    "files": [
+        "./src/relay.ts"
+    ],
+    "include": [
+        "lib",
+        "scripts",
+        "src"
+    ],
+    "paths": {
+        "@polkadot/api/augment": [
+            "node_modules/@phala-network/typedefs/dist/augment-api.d.ts"
+        ],
+        "@polkadot/types/augment": [
+            "node_modules/@phala-network/typedefs/dist/augment-types.d.ts"
+        ]
+    },
+    "ts-node": {
+        "files": true
+    }
+}
