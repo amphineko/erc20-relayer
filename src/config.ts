@@ -1,3 +1,15 @@
+export interface AgentConfiguration {
+    alice: string
+
+    etherscanApiKey: string
+
+    proxy: {
+        host: string
+        port: number
+        protocol: string
+    }
+}
+
 export interface NetworkDescription {
     /**
      * ERC-20 contract address

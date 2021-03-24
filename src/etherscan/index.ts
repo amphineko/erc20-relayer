@@ -4,6 +4,9 @@ import HttpsProxyAgent from 'https-proxy-agent/dist/agent'
 import fetch, { Response } from 'node-fetch'
 import { stringify as makeQuerystring } from 'querystring'
 import { URL } from 'url'
+import { getLogger } from 'loglevel'
+
+const log = getLogger('EtherscanAPI')
 
 interface ProxyConfiguration {
     host: string
@@ -32,7 +35,7 @@ export interface Transaction {
 
 export class NoTransactionError extends Error { }
 
-const defaultPageSize = 500
+const defaultPageSize = 1
 const defaultRetries = 5
 
 export class EtherscanClient {
@@ -73,7 +76,7 @@ export class EtherscanClient {
      * @param start starting block number
      * @param contract contract address of ERC-20 token
      */
-    private async readTokenTxPage(page: number, offset: number, height: number, start: number, contract: string): Promise<Transaction[]> {
+    public async readTokenTxPage(page: number, offset: number, height: number, start: number, contract: string): Promise<Transaction[]> {
         const resp = await this.get('tokentx', 'account', {
             contractaddress: contract,
             endblock: height.toString(),
@@ -91,7 +94,24 @@ export class EtherscanClient {
 
         switch (data?.status) {
             // TODO: runtime check to verify data (e.g io-ts)
+
+            /**
+             *
+             * NOTE: Etherscan has some weird behaviours on their result.
+             *
+             * Generally, succeeded request with transactions should have `data.status === 1`.
+             *
+             * Response with no transaction belongs to the contract will have `data.status === 0`.
+             * And `data.result` will be `[]` (an empty array).
+             *
+             * However, error "result window too large" will have `data.status === 0` but return `null` for `data.result`.
+             *
+             */
+
+            // TODO: throw an separated exception for "result window too large"
+
             case '0':
+                log.debug(`Remote returned no transactions: ${data.message ?? 'Reason N/A'}`)
                 throw new NoTransactionError(data?.message ?? 'No transactions found')
             case '1':
                 if (!(data.result instanceof Array) || data.result.length === 0) {
@@ -127,6 +147,7 @@ export class EtherscanClient {
             } catch (error) {
                 if (error instanceof NoTransactionError) {
                     // no remaining transaction page
+                    console.log(error.message)
                     break
                 }
 

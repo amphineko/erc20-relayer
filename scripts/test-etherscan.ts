@@ -1,5 +1,5 @@
 import { NetworkDescription, networks } from '../src/config'
-import { EtherscanClient } from '../src/ethereum/etherscan'
+import { EtherscanClient } from '../src/etherscan'
 
 const apiKey = process.env.API_KEY
 if (apiKey === undefined) {
