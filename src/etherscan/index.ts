@@ -54,6 +54,7 @@ export class EtherscanClient {
     private async get(action: string, module: string, params?: Record<string, string>): Promise<Response> {
         const url = new URL(this.endpoint)
         url.search = makeQuerystring({ action, apiKey: this.apiKey, module, ...params })
+        log.trace('GET', url.toString())
         return await fetch(url, { agent: this.httpsAgent })
     }
 

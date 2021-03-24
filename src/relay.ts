@@ -1,6 +1,7 @@
 import { AddressOrPair } from '@polkadot/api/types'
 import Keyring from '@polkadot/keyring'
 import { BalanceOf } from '@polkadot/types/interfaces'
+import { AssertionError } from 'assert'
 import log from 'loglevel'
 import { AgentConfiguration, NetworkDescription, networks } from './config'
 import { EtherscanClient, Transaction } from './etherscan'
@@ -38,7 +39,8 @@ async function forwardTransactions(
 ): Promise<number> {
     const allTransactions = await client.readTokenTxPage(1, maximumTxPerBlock, ethHeight, startBlock, contract)
 
-    const blockNumber = Array.from(chunkTransactions(allTransactions).keys())
+    const chunked = chunkTransactions(allTransactions)
+    const blockNumber = Array.from(chunked.keys())
         .map(a => parseInt(a))
         .sort((a, b) => a - b)[0] ?? undefined
 
@@ -49,12 +51,14 @@ async function forwardTransactions(
 
     log.getLogger('forwardTransactions').info(`Forwarding block ${blockNumber}`)
 
-    const claims = allTransactions.map((tx) => {
+    const claims = chunked.get(blockNumber.toString())?.map((tx) => {
         const hash = ethereumTxHash.encode(tx.hash)
         const address = ethereumAddress.encode(tx.from)
         const amount = balanceOf.encode(tx.value).divn(1e+2) as BalanceOf
         return { address, amount, tx: hash }
     })
+
+    if (claims === undefined) { throw new AssertionError() }
 
     await phala.storeErc20BurnedTransaction(blockNumber, claims, alice)
 
@@ -64,17 +68,19 @@ async function forwardTransactions(
 async function forwardHistoryTransactions(contractHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient): Promise<number> {
     const startBlock = Math.max(await phala.queryEndHeight(), contractHeight)
     const etherHeight = await client.readHeight()
-    log.getLogger('forwardHistoryTransactions').debug(`Forwarding transactions starting from block ${startBlock} to ${etherHeight}`)
+    log.getLogger('forwardHistoryTransactions').debug(`Forward transactions starting from block ${startBlock} to ${etherHeight}`)
     const currentHeight = await forwardTransactions(startBlock, etherHeight, contract, client, alice, phala)
     return Math.min(currentHeight, etherHeight)
 }
 
 export async function run(network: NetworkDescription, agent: AgentConfiguration): Promise<void> {
+    const ether = new EtherscanClient(agent.etherscanApiKey, network.etherscanApiBase, agent.proxy)
+    const phala = await PhalaClient.create(network.endpoint)
+
     const keyring = new Keyring({ type: 'sr25519' })
     const alice = keyring.addFromUri(agent.alice)
 
-    const ether = new EtherscanClient(agent.etherscanApiKey, network.etherscanApiBase, agent.proxy)
-    const phala = await PhalaClient.create(network.endpoint)
+    log.getLogger('run').debug('Clients initialized')
 
     while (true) {
         await forwardHistoryTransactions(network.contractHeight, network.contract, ether, alice, phala)

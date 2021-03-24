@@ -31,7 +31,7 @@ export class PhalaClient {
     }
 
     public async queryEndHeight(): Promise<number> {
-        return (await this.api.query.phaClaim.endHeight()).unwrap().toNumber()
+        return (await this.api.query.phaClaim.endHeight()).unwrapOrDefault().toNumber()
     }
 
     public async storeErc20BurnedTransaction(height: number, claims: BurnedErc20Claim[], signer: AddressOrPair): Promise<Hash> {
