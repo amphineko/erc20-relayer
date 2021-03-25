@@ -1,10 +1,10 @@
 import { hexToNumber } from '@polkadot/util'
 import createHttpsProxyAgent from 'https-proxy-agent'
 import HttpsProxyAgent from 'https-proxy-agent/dist/agent'
+import { getLogger } from 'loglevel'
 import fetch, { Response } from 'node-fetch'
 import { stringify as makeQuerystring } from 'querystring'
 import { URL } from 'url'
-import { getLogger } from 'loglevel'
 
 const log = getLogger('EtherscanAPI')
 
@@ -30,6 +30,7 @@ export interface Transaction {
     blockNumber: string
     from: string
     hash: string
+    to: string
     value: string
 }
 

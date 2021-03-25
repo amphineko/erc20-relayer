@@ -3,9 +3,9 @@ import Keyring from '@polkadot/keyring'
 import { BalanceOf } from '@polkadot/types/interfaces'
 import { AssertionError } from 'assert'
 import log from 'loglevel'
-import { AgentConfiguration, NetworkDescription, networks } from './config'
+import { AgentConfiguration, NetworkDescription } from './config'
 import { EtherscanClient, Transaction } from './etherscan'
-import { PhalaClient } from './phala'
+import { PhalaClient, TransactionHashAlreadyExistError } from './phala'
 import { balanceOf, ethereumAddress, ethereumTxHash } from './phala/data'
 
 /**
@@ -37,7 +37,21 @@ const maximumTxPerBlock = 300
 async function forwardTransactions(
     startBlock: number, ethHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient
 ): Promise<number> {
-    const allTransactions = await client.readTokenTxPage(1, maximumTxPerBlock, ethHeight, startBlock, contract)
+    const { debug, info } = log.getLogger('forwardTransactions')
+
+    info(`Reading ERC-20 burn transactions from block ${startBlock} to block ${ethHeight}`)
+
+    // TODO: extract this as a function to retrieve a full block over pages
+    // TODO: filter out non-burn destination address
+    const allTransactions = (await client.readTokenTxPage(1, maximumTxPerBlock, ethHeight, startBlock, contract))
+    // .filter((tx) => {
+    //     if (tx.to === '0x000000000000000000000000000000000000dead') {
+    //         return true
+    //     } else {
+    //         console.log(tx.to)
+    //         return false
+    //     }
+    // })
 
     const chunked = chunkTransactions(allTransactions)
     const blockNumber = Array.from(chunked.keys())
@@ -45,11 +59,11 @@ async function forwardTransactions(
         .sort((a, b) => a - b)[0] ?? undefined
 
     if (blockNumber === undefined) {
-        log.getLogger('forwardTransactions').debug(`Retrieved no transactions from block ${startBlock} to block ${ethHeight}`)
+        debug(`Retrieved no transactions from block ${startBlock} to block ${ethHeight}`)
         return ethHeight
     }
 
-    log.getLogger('forwardTransactions').info(`Forwarding block ${blockNumber}`)
+    info(`Writing ERC-20 burn transactions of block ${blockNumber} to Phala`)
 
     const claims = chunked.get(blockNumber.toString())?.map((tx) => {
         const hash = ethereumTxHash.encode(tx.hash)
@@ -60,8 +74,10 @@ async function forwardTransactions(
 
     if (claims === undefined) { throw new AssertionError() }
 
+    claims.forEach((claim) => debug(`Writing transaction ${claim.tx.toString()} from ${claim.address.toString()} @ ${claim.amount.toString()}`))
+
     try {
-    await phala.storeErc20BurnedTransaction(blockNumber, claims, alice)
+        await phala.storeErc20BurnedTransaction(blockNumber, claims, alice)
     } catch (error) {
         if (error instanceof TransactionHashAlreadyExistError) {
             debug(`Skipping already existing transactions of block ${blockNumber}`)
