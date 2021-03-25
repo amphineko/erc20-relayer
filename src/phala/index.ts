@@ -15,6 +15,8 @@ export interface BurnedErc20Claim {
     tx: StrongEthereumTxHash
 }
 
+export class TransactionHashAlreadyExistError extends Error { }
+
 export class PhalaClient {
     private readonly api: ApiPromise
 
@@ -60,9 +62,13 @@ export class PhalaClient {
                             const decoded = this.api.registry.findMetaError((error as DispatchError).asModule)
                             const { documentation, method, section } = decoded
 
+                            if (section === 'phaClaim' && method === 'TxHashAlreadyExist') {
+                                reject(new TransactionHashAlreadyExistError(`Transaction hash already exists (${result.status.hash.toString()})`))
+                            } else {
                             reject(new Error(`Extrinsic failed: ${section}.${method}: ${documentation.join(' ')}`))
+                            }
                         } else {
-                            reject(new Error(`Extrinsic failed: ${error?.toString() ?? (error as unknown as string)}`))
+                            reject(new Error(`Extrinsic failed: ${error?.toString() ?? (error as unknown as string)} `))
                         }
                     }
 
@@ -73,9 +79,9 @@ export class PhalaClient {
                     reject(new Error('Invalid transaction'))
                 }
             }).then((unsubscribe) => {
-                promise.finally(() => unsubscribe())
+                // promise.finally(() => unsubscribe())
             }).catch((reason) => {
-                reject(new Error(`Failed to send extrinsic: ${(reason as Error)?.message ?? reason}`))
+                reject(new Error(`Failed to send extrinsic: ${(reason as Error)?.message ?? reason} `))
             })
         })
 

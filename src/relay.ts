@@ -60,7 +60,15 @@ async function forwardTransactions(
 
     if (claims === undefined) { throw new AssertionError() }
 
+    try {
     await phala.storeErc20BurnedTransaction(blockNumber, claims, alice)
+    } catch (error) {
+        if (error instanceof TransactionHashAlreadyExistError) {
+            debug(`Skipping already existing transactions of block ${blockNumber}`)
+        } else {
+            throw error
+        }
+    }
 
     return blockNumber
 }
