@@ -65,7 +65,7 @@ export class PhalaClient {
                             if (section === 'phaClaim' && method === 'TxHashAlreadyExist') {
                                 reject(new TransactionHashAlreadyExistError(`Transaction hash already exists (${result.status.hash.toString()})`))
                             } else {
-                            reject(new Error(`Extrinsic failed: ${section}.${method}: ${documentation.join(' ')}`))
+                                reject(new Error(`Extrinsic failed: ${section}.${method}: ${documentation.join(' ')}`))
                             }
                         } else {
                             reject(new Error(`Extrinsic failed: ${error?.toString() ?? (error as unknown as string)} `))
@@ -85,7 +85,7 @@ export class PhalaClient {
             })
         })
 
-        return promise
+        return await promise
     }
 
     private constructor(api: ApiPromise) {
