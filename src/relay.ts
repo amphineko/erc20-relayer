@@ -73,8 +73,8 @@ async function forwardTransactions(
     return blockNumber
 }
 
-async function forwardHistoryTransactions(contractHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient): Promise<number> {
-    const startBlock = Math.max(await phala.queryEndHeight(), contractHeight)
+async function forwardHistoryTransactions(lastWrittenHeight: number, contractHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient): Promise<number> {
+    const startBlock = Math.max(lastWrittenHeight, contractHeight) + 1
     const etherHeight = await client.readHeight()
     log.getLogger('forwardHistoryTransactions').debug(`Forward transactions starting from block ${startBlock} to ${etherHeight}`)
     const currentHeight = await forwardTransactions(startBlock, etherHeight, contract, client, alice, phala)
@@ -90,7 +90,11 @@ export async function run(network: NetworkDescription, agent: AgentConfiguration
 
     log.getLogger('run').debug('Clients initialized')
 
+    let lastWrittenHeight = 0
     while (true) {
-        await forwardHistoryTransactions(network.contractHeight, network.contract, ether, alice, phala)
+        lastWrittenHeight = await forwardHistoryTransactions(
+            Math.max(lastWrittenHeight, await phala.queryEndHeight()),
+            network.contractHeight, network.contract, ether, alice, phala
+        )
     }
 }
