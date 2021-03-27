@@ -28,16 +28,38 @@ interface ProxyResponse {
 
 export interface Transaction {
     blockNumber: string
+    contractAddress: string
     from: string
     hash: string
     to: string
     value: string
 }
 
+/**
+ * Maximum retry of a request
+ */
+const maximumRetries = 5
+
+/**
+ * Approximate maximum amount of transactions per block
+ */
+const maximumTxPerBlock = 500
+
 export class NoTransactionError extends Error { }
 
-const defaultPageSize = 1
-const defaultRetries = 5
+/**
+ * Reading window (transactions per page) is too small to contain all transactions in a block
+ */
+export class ReadWindowToSmallError extends Error { }
+
+export class TooManyRetriesError extends Error {
+    public readonly innerErrors: Error[]
+
+    constructor(innerErrors: Error[]) {
+        super('Too many retries')
+        this.innerErrors = innerErrors
+    }
+}
 
 export class EtherscanClient {
     private readonly apiKey: string
@@ -57,6 +79,20 @@ export class EtherscanClient {
         url.search = makeQuerystring({ action, apiKey: this.apiKey, module, ...params })
         log.trace('GET', url.toString())
         return await fetch(url, { agent: this.httpsAgent })
+    }
+
+    public static async withRetry<T>(request: () => Promise<T>): Promise<T> {
+        const errors: Error[] = []
+
+        for (let retry = 0; retry < maximumRetries; retry++) {
+            try {
+                return await request()
+            } catch (error) {
+                errors.push(error)
+            }
+        }
+
+        throw new TooManyRetriesError(errors)
     }
 
     public async readHeight(): Promise<number> {
@@ -131,35 +167,37 @@ export class EtherscanClient {
      * @param contract contract address of ERC-20 token
      * @yields transactions splitted into pages
      */
-    public async * readTokenTx(height: number, start: number, contract: string): AsyncGenerator<Transaction[], void, void> {
-        let page = 1
-        let retries = 0
+    public async * readTokenTx(height: number, start: number, contract: string): AsyncGenerator<Transaction[], number, void> {
+        let nextBlock = start
+
         while (true) {
             try {
-                const transactions = await this.readTokenTxPage(page, defaultPageSize, height, start, contract)
-                yield transactions
-
-                if (transactions.length < defaultPageSize) {
-                    // no remaining transaction page
-                    break
+                const page = await EtherscanClient.withRetry(async () => {
+                    console.log(`readTokenTxPage(1, ${maximumTxPerBlock}, ${height}, ${nextBlock}, ${contract})`)
+                    return await this.readTokenTxPage(1, maximumTxPerBlock, height, nextBlock, contract)
+                })
+                if (page[0] === undefined) {
+                    // no result in the page
+                    throw new NoTransactionError()
                 }
 
-                page++
-                retries = 0
+                const blockNumber = page[0].blockNumber
+                const result = page.filter((tx) => tx.blockNumber === blockNumber) // read the first block of transactions
+                if (result.length === page.length) {
+                    // some transactions in the same block might be on the next page
+                    throw new ReadWindowToSmallError(`Transactions of block ${blockNumber} is more than ${maximumTxPerBlock}`)
+                }
+
+                console.log(`page length ${page.length}, filtered result length ${result.length}`)
+
+                yield result
+                nextBlock = parseInt(blockNumber) + 1
             } catch (error) {
                 if (error instanceof NoTransactionError) {
-                    // no remaining transaction page
-                    console.log(error.message)
-                    break
+                    return nextBlock
                 }
 
-                if (retries > defaultRetries) {
-                    // retry for other errors
-                    throw error
-                }
-
-                console.error(`Retrying. Read page ${page} failed: ${(error as Error)?.message ?? error}`)
-                retries++
+                throw error
             }
         }
     }
