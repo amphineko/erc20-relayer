@@ -3,11 +3,7 @@ export interface AgentConfiguration {
 
     etherscanApiKey: string
 
-    proxy: {
-        host: string
-        port: number
-        protocol: string
-    }
+    proxy?: string
 }
 
 export interface NetworkDescription {
