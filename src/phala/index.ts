@@ -3,11 +3,8 @@ import { ApiPromise, WsProvider } from '@polkadot/api'
 import { AddressOrPair } from '@polkadot/api/types'
 import { BalanceOf, DispatchError, Hash } from '@polkadot/types/interfaces'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
-import { getLogger } from 'loglevel'
 import { StrongBalanceOf, StrongEthereumAddress, StrongEthereumTxHash } from './data'
 import { Types } from './typedefs'
-
-const log = getLogger('PhalaClient')
 
 export interface BurnedErc20Claim {
     address: StrongEthereumAddress
@@ -19,6 +16,8 @@ export class TransactionHashAlreadyExistError extends Error { }
 
 export class PhalaClient {
     private readonly api: ApiPromise
+
+    // private lastNonce: number
 
     public static async create(endpoint: string): Promise<PhalaClient> {
         const provider = new WsProvider(endpoint)
@@ -37,19 +36,18 @@ export class PhalaClient {
     }
 
     public async storeErc20BurnedTransaction(height: number, claims: BurnedErc20Claim[], signer: AddressOrPair): Promise<Hash> {
+        // TODO: locally track nonce and pass to signAndSend
+
         const input: Array<[EthereumTxHash, EthereumAddress, BalanceOf]> = claims.map(claim => {
             return [claim.tx, claim.address, claim.amount]
         })
 
         const extrinsic = this.api.tx.phaClaim.storeErc20BurnedTransactions(height, input)
         const promise = new Promise<Hash>((resolve, reject) => {
+            // TODO: pass nonce to signAndSend
             extrinsic.signAndSend(signer, (result) => {
+                // TODO: use status.isInBlock while nonce is available
                 if (result.status.isFinalized) {
-                    // TODO: remove this debugging print
-                    result.events.forEach(({ event: { data, method, section }, phase }) => {
-                        log.trace(`Extrinsic ${phase.toString()}: ${section}.${method} ${data.toString()}`)
-                    })
-
                     const failure = result.events.filter((e) => {
                         // https://polkadot.js.org/docs/api/examples/promise/system-events
                         return this.api.events.system.ExtrinsicFailed.is(e.event)
@@ -79,7 +77,8 @@ export class PhalaClient {
                     reject(new Error('Invalid transaction'))
                 }
             }).then((unsubscribe) => {
-                // promise.finally(() => unsubscribe())
+                // comment out the following may help resolving weird error leaking
+                promise.finally(() => unsubscribe())
             }).catch((reason) => {
                 reject(new Error(`Failed to send extrinsic: ${(reason as Error)?.message ?? reason} `))
             })
