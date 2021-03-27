@@ -1,6 +1,11 @@
 import assert, { AssertionError } from 'assert'
+import log from 'loglevel'
+import logPrefix from 'loglevel-plugin-prefix'
 import { NetworkDescription, networks } from '../src/config'
 import { EtherscanClient } from '../src/etherscan'
+
+logPrefix.reg(log)
+log.enableAll()
 
 const apiKey = process.env.API_KEY
 if (apiKey === undefined) {
@@ -19,7 +24,11 @@ if (network === undefined) {
 
 const client = new EtherscanClient(apiKey, network.etherscanApiBase, process.env.HTTP_PROXY)
 
-async function readTransactions(contractHeight: number, contract: string): Promise<void> {
+async function readTransactions(startHeight: number, contract: string): Promise<{
+    burnCount: number
+    rawCount: number
+    lastBlock: number
+}> {
     let chainHeight = 0
     try {
         chainHeight = await client.readHeight()
@@ -28,17 +37,23 @@ async function readTransactions(contractHeight: number, contract: string): Promi
         console.error(`readHeight ERROR: ${reason as string}`)
     }
 
-    console.info(`Will read Ethereum transactions from block ${contractHeight} to ${chainHeight}`)
+    console.info(`Will read Ethereum transactions from block ${startHeight} to ${chainHeight}`)
 
-    const iterator = client.readTokenTx(chainHeight, contractHeight, contract)
+    const iterator = client.readTokenTx(chainHeight, startHeight, contract)
     let totalBurn = 0
     let totalRaw = 0
     while (true) {
         const result = await iterator.next()
 
-        if (result.done !== false) {
+        if (result.done === true) {
             console.info(`Last block height ${result.value.toString()}`)
-            break
+            console.info(`Read ${totalBurn} burn of ${totalRaw} raw transactions in this window`)
+
+            return {
+                rawCount: totalRaw,
+                burnCount: totalBurn,
+                lastBlock: result.value
+            }
         }
 
         const raw = result.value
@@ -70,8 +85,23 @@ async function readTransactions(contractHeight: number, contract: string): Promi
         totalBurn += burn.length
         totalRaw += raw.length
     }
-
-    console.info(`Read all ${totalBurn} burn of ${totalRaw} raw transactions`)
 }
 
-readTransactions(network.contractHeight, network.contract).then(() => { }).catch((reason) => { console.error(reason) })
+async function run(contractHeight: number, contract: string): Promise<void> {
+    let totalBurn = 0
+    let totalRaw = 0
+    let lastBlock = contractHeight
+
+    while (true) {
+        const { rawCount: allTxCount, burnCount: burnTxCount, lastBlock: block } = await readTransactions(lastBlock, contract)
+        totalBurn += burnTxCount
+        totalRaw += allTxCount
+        lastBlock = block + 1
+
+        if (allTxCount === 0) break
+    }
+
+    console.info(`Session read all ${totalBurn} burn of ${totalRaw} raw transactions`)
+}
+
+run(network.contractHeight, network.contract).then(() => { }).catch((reason) => { console.error(reason) })
