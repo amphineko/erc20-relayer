@@ -30,8 +30,7 @@ export interface NetworkDescription {
 
 export const networks: Record<string, NetworkDescription> = {
     main: {
-        contract: '0x6c5bA91642F10282b576d91922Ae6448C9d52f4E',
-        contractHeight: 9975568,
+        contract: '0x6c5ba91642f10282b576d91922ae6448c9d52f4e',
         endpoint: 'wss://poc4.phala.network/ws',
         etherscanApiBase: 'https://api.etherscan.io/api'
     },

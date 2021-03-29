@@ -14,13 +14,13 @@ import { balanceOf, ethereumAddress, ethereumTxHash } from './phala/data'
  * @param client Etherscan client
  * @returns
  */
-async function forwardTransactions(
-    startBlock: number, ethHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient
+async function relayTransactions(
+    topBlock: number, startBlock: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient
 ): Promise<number> {
-    const { debug, info } = log.getLogger('forwardTransactions')
+    const { debug, info } = log.getLogger('relayTransactions')
 
-    info(`Reading burn transactions from block ${startBlock} to block ${ethHeight}`)
-    const generator = client.readTokenTx(ethHeight, startBlock, contract)
+    info(`Reading burn transactions from block ${startBlock} to block ${topBlock}`)
+    const generator = client.readTokenTx(topBlock, startBlock, contract)
 
     while (true) {
         const result = await generator.next()
@@ -46,7 +46,7 @@ async function forwardTransactions(
 
         info(`In Ethereum block ${result.value[0]?.blockNumber ?? 0}:`)
         burns.forEach((claim) => {
-            info(` Found transaction ${claim.original.hash} from ${claim.original.from} @ ${claim.amount.toString()}`)
+            info(`> ${claim.original.hash} from ${claim.original.from} value ${claim.amount.toString()}`)
         })
 
         try {
@@ -63,17 +63,17 @@ async function forwardTransactions(
     }
 }
 
-async function forwardHistoryTransactions(lastWrittenHeight: number, contractHeight: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient): Promise<number> {
-    const startBlock = Math.max(lastWrittenHeight, contractHeight) + 1
-    const etherHeight = await client.readHeight()
-    log.getLogger('forwardHistoryTransactions').debug(`Forward transactions starting from block ${startBlock} to ${etherHeight}`)
-    const currentHeight = await forwardTransactions(startBlock, etherHeight, contract, client, alice, phala)
-    return Math.min(currentHeight, etherHeight)
+async function relayTransactions2(
+    startBlock: number, contract: string, client: EtherscanClient, alice: AddressOrPair, phala: PhalaClient
+): Promise<number> {
+    const ethereumHeight = await client.readHeight()
+    const currentHeight = await relayTransactions(ethereumHeight, startBlock, contract, client, alice, phala)
+    return Math.min(currentHeight, ethereumHeight)
 }
 
 export async function run(network: NetworkDescription, agent: AgentConfiguration): Promise<void> {
-    const ether = new EtherscanClient(agent.etherscanApiKey, network.etherscanApiBase, agent.proxy)
-    const phala = await PhalaClient.create(network.endpoint)
+    const ethereumClient = new EtherscanClient(agent.etherscanApiKey, network.etherscanApiBase, agent.proxy)
+    const phalaClient = await PhalaClient.create(network.endpoint)
 
     const keyring = new Keyring({ type: 'sr25519' })
     const alice = keyring.addFromUri(agent.alice)
@@ -82,9 +82,13 @@ export async function run(network: NetworkDescription, agent: AgentConfiguration
 
     let lastWrittenHeight = 0
     while (true) {
-        lastWrittenHeight = await forwardHistoryTransactions(
-            Math.max(lastWrittenHeight, await phala.queryEndHeight()),
-            network.contractHeight, network.contract, ether, alice, phala
+        lastWrittenHeight = await relayTransactions2(
+            Math.max(
+                lastWrittenHeight + 1,
+                await phalaClient.queryEndHeight() + 1,
+                network.contractHeight
+            ),
+            network.contract, ethereumClient, alice, phalaClient
         )
     }
 }
