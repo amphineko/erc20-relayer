@@ -8,6 +8,8 @@ import { EtherscanClient } from './etherscan'
 import { PhalaClient, TransactionHashAlreadyExistError } from './phala'
 import { balanceOf, ethereumAddress, ethereumTxHash } from './phala/data'
 
+const cooldownTimeout = 1000 * 60
+
 /**
  * @param lowBlockNumber starting block to read transactions
  * @param contract contract address of ERC20
@@ -90,5 +92,8 @@ export async function run(network: NetworkDescription, agent: AgentConfiguration
             ),
             network.contract, ethereumClient, alice, phalaClient
         )
+
+        log.getLogger('run').info(`Cooling down for ${cooldownTimeout / 1000} seconds`)
+        await new Promise<void>(resolve => setTimeout(() => resolve(), cooldownTimeout))
     }
 }
