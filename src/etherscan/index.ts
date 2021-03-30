@@ -169,7 +169,12 @@ export class EtherscanClient {
 
         while (true) {
             if (blocks.size <= 1) {
+                // only one block remaining in the backlog
+                // it could be incomplete with another half in the next page
+
                 if (nextPage * defaultPageSize >= 10000) {
+                    // should not attempt reading next page
+                    // result window is limited to 10k by Etherscan
                     this.log.debug(`Generator stopped at page ${nextPage}, offset ${defaultPageSize}, height ${lastYieldBlock}, backlog ${blocks.size} blocks`)
                     return lastYieldBlock
                 }
@@ -182,6 +187,13 @@ export class EtherscanClient {
                     }, (error) => error instanceof NoTransactionError)
                 } catch (error) {
                     if (error instanceof NoTransactionError) {
+                        // the backlog may contain a complete block to yield
+                        const result = blocks.entries().next()
+                        if (result.done === false) {
+                            lastYieldBlock = result.value[0]
+                            yield result.value[1]
+                        }
+
                         return lastYieldBlock
                     }
 
