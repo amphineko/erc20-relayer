@@ -29,12 +29,25 @@ export interface NetworkDescription {
 }
 
 export const networks: Record<string, NetworkDescription> = {
-    main: {
+    'main-poc3': {
         contract: '0x6c5ba91642f10282b576d91922ae6448c9d52f4e',
+        contractHeight: 9975568,
+        endpoint: 'wss://poc3a.phala.network/ws',
+        etherscanApiBase: 'https://api.etherscan.io/api'
+    },
+    'main-poc4': {
+        contract: '0x6c5ba91642f10282b576d91922ae6448c9d52f4e',
+        contractHeight: 9975568,
         endpoint: 'wss://poc4.phala.network/ws',
         etherscanApiBase: 'https://api.etherscan.io/api'
     },
-    kovan: {
+    'kovan-poc3': {
+        contract: '0x512f7a3c14b6ee86c2015bc8ac1fe97e657f75f2',
+        contractHeight: 20775211,
+        endpoint: 'wss://poc3a.phala.network/ws',
+        etherscanApiBase: 'https://api-kovan.etherscan.io/api'
+    },
+    'kovan-poc4': {
         contract: '0x512f7a3c14b6ee86c2015bc8ac1fe97e657f75f2',
         contractHeight: 20775211,
         endpoint: 'wss://poc4.phala.network/ws',
