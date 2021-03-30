@@ -201,7 +201,7 @@ export class EtherscanClient {
 
                 this.log.debug(`Transaction backlog has ${blocks.size} blocks after read`)
             } else {
-                const blockNumber = Array.from(blocks.keys())[0]
+                const blockNumber = Array.from(blocks.keys()).sort((a, b) => a - b)[0]
                 if (blockNumber === undefined) { throw new AssertionError() }
 
                 const block = blocks.get(blockNumber)
