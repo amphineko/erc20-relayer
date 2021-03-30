@@ -17,8 +17,6 @@ export class TransactionHashAlreadyExistError extends Error { }
 export class PhalaClient {
     private readonly api: ApiPromise
 
-    // private lastNonce: number
-
     public static async create(endpoint: string): Promise<PhalaClient> {
         const provider = new WsProvider(endpoint)
         const api = await ApiPromise.create({
